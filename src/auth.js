@@ -1,0 +1,1 @@
+export const auth = { isAuthed: false, user: null };
