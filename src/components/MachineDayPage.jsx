@@ -1,116 +1,301 @@
+import { useEffect, useState } from "react";
 import {
-    PieChart,
-    Pie,
-    Cell,
-    Tooltip,
-    Legend,
-    ResponsiveContainer,
-  } from "recharts";
-  
-  export default function MachineDayPage({ machine, day }) {
-    if (!machine || !day) return null;
-  
-    // ----- DỮ LIỆU DEMO PIE (sau này bạn thay bằng API) -----
-    const pieData = [
-      { name: "Operation", value: 7.58 * 60 }, // phút
-      { name: "Others", value: 2.42 * 60 },
-    ];
-  
-    const COLORS = ["#00a03e", "#000000"];
-  
-    // Dữ liệu bảng chi tiết
-    const detailRows = [
-      { color: "#00a03e", label: "Operation", time: "7h 35m 4s", ratio: "23.61%" },
-      { color: "#f97316", label: "Small Stop", time: "0h 0m 14s", ratio: "0%" },
-      { color: "#ef4444", label: "Fault", time: "0h 0m 0s", ratio: "0%" },
-      { color: "#eab308", label: "Break", time: "0h 0m 0s", ratio: "0%" },
-      { color: "#6b21a8", label: "Maintenance", time: "0h 0m 0s", ratio: "0%" },
-      { color: "#22c55e", label: "Eat", time: "0h 0m 0s", ratio: "0%" },
-      { color: "#0ea5e9", label: "Waiting", time: "0h 0m 0s", ratio: "0%" },
-      { color: "#38bdf8", label: "Check Machinery", time: "0h 0m 0s", ratio: "0%" },
-      { color: "#a855f7", label: "Change Product Code", time: "0h 0m 0s", ratio: "0%" },
-      { color: "#fb7185", label: "Glue Cleaning Paper", time: "0h 0m 0s", ratio: "0%" },
-      { color: "#1d4ed8", label: "Machinery Edit", time: "0h 0m 0s", ratio: "0%" },
-      { color: "#6b7280", label: "Others", time: "0h 6m 25s", ratio: "76.39%" },
-    ];
-  
-    // PRODUCT demo
-    const productInfo = {
-      total: 336,
-      ok: 336,
-      ng: 0,
-      ratio: "100%",
-    };
-  
-    return (
-      <div>
-        {/* <h4>Dữ liệu theo ngày</h4>
-        <p>
-          Máy: <b>{machine.name}</b> (ID: {machine.id}) &nbsp;|&nbsp; Ngày:{" "}
-          <b>{day}</b>
-        </p> */}
-  
-        {/* GRID 2 CỘT: PIE (TRÁI) + BẢNG (PHẢI) */}
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import * as XLSX from "xlsx";
+import { fetchMachineDay } from "../api";
+
+export default function MachineDayPage({ machine, day }) {
+  const [pieData, setPieData] = useState([]);
+  const [detailRows, setDetailRows] = useState([]);
+  const [powerRun, setPowerRun] = useState("");
+  const [totalHours, setTotalHours] = useState(null);
+  const [productInfo, setProductInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const showOverlay = loading && day;
+  useEffect(() => {
+    if (!machine || !day) return;
+
+    async function loadData() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await fetchMachineDay(machine.id, day);
+        console.log("MachineDay API data:", data);
+
+        if (!data || !Array.isArray(data.pie)) {
+          setPieData([]);
+          setDetailRows([]);
+          setPowerRun("");
+          setTotalHours(null);
+          setProductInfo(null);
+        } else {
+          setPieData(data.pie || []);
+          setDetailRows(data.details || []);
+          setPowerRun(data.power_run || "");
+          setTotalHours(
+            typeof data.total_hours === "number" ? data.total_hours : null
+          );
+          setProductInfo(data.product || null);
+        }
+      } catch (err) {
+        console.error("Lỗi load dữ liệu máy theo ngày:", err);
+        setError("Không tải được dữ liệu từ server");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, [machine, day]);
+
+  if (!machine || !day) return null;
+
+  // ✅ HÀM EXPORT RA FILE EXCEL .xlsx
+  const handleExportExcel = () => {
+    if (!detailRows.length && !productInfo) {
+      alert("Không có dữ liệu để xuất.");
+      return;
+    }
+    
+    const wsData = [];
+
+    // Thông tin chung
+    // wsData.push(["Máy", `${machine.name} (ID: ${machine.id})`]);
+    // wsData.push(["Ngày", day]);
+    // if (totalHours !== null) {
+    //   wsData.push(["Tổng thời gian (giờ)", totalHours]);
+    // }
+    // if (powerRun) {
+    //   wsData.push(["Power Run", powerRun]);
+    // }
+    wsData.push([]); // dòng trống
+
+    // BẢNG THỜI GIAN
+    wsData.push(["BẢNG THỜI GIAN"]);
+    wsData.push(["Loại dữ liệu", "Giờ", "Thời gian", "Tỷ lệ (%)"]);
+
+    detailRows.forEach((row) => {
+      wsData.push([
+        row.label,
+        row.value,
+        row.time,
+        row.ratio_text || row.ratio || "",
+      ]);
+    });
+
+    wsData.push([]); // dòng trống
+
+    // BẢNG PRODUCT
+    wsData.push(["PRODUCT"]);
+    wsData.push(["TOTAL", "OK", "NG", "RATIO (%)"]);
+    if (productInfo) {
+      wsData.push([
+        productInfo.total ?? "",
+        productInfo.ok ?? "",
+        productInfo.ng ?? "",
+        productInfo.ratio_text || productInfo.ratio || "",
+      ]);
+    }
+
+    // Tạo workbook & sheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "DayData");
+
+    // Ghi ra buffer + tải xuống
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `machine_${machine.id}_${day}_daydata.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {showOverlay && (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "rgba(255,255,255,0.6)",
+          zIndex: 20,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backdropFilter: "blur(2px)",
+        }}
+      >
         <div
           style={{
-            marginTop: 8,
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr", // 🔥 mỗi bên 50%
-            gap: 12,
-            width: "100%",
+            padding: "10px 18px",
+            borderRadius: 999,
+            background: "#111827",
+            color: "#ffffff",
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
           }}
         >
-          {/* PIE CHART */}
-          <div
+          <span
             style={{
-              borderRadius: 8,
-              border: "1px solid #d1d5db",
-              background: "#ffffff",
-              padding: 8,
+              width: 14,
+              height: 14,
+              borderRadius: "50%",
+              border: "2px solid #ffffff",
+              borderTopColor: "transparent",
+              animation: "spin 0.8s linear infinite",
             }}
-          >
-            <div style={{ width: "100%", height: 260 }}>
-              <ResponsiveContainer>
-                <PieChart>
-                  <Tooltip />
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius="90%"
-                    label
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+          />
+          Đang tải dữ liệu...
+        </div>
+      </div>
+    )}
+      {/* HÀNG TIÊU ĐỀ + NÚT EXPORT */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 6,
+          gap: 8,
+        }}
+      >
+        {/* <div style={{ flex: 1 }}>
+          <h4 style={{ margin: "0 0 2px" }}>Dữ liệu theo ngày</h4>
+          <p style={{ margin: 0, fontSize: 13 }}>
+            Máy: <b>{machine.name}</b> (ID: {machine.id}) &nbsp;|&nbsp; Ngày:{" "}
+            <b>{day}</b>
+          </p>
+          {totalHours !== null && (
+            <p style={{ margin: "2px 0 0", fontSize: 12, color: "#4b5563" }}>
+              Tổng thời gian: <b>{totalHours}</b> giờ
+              {powerRun && (
+                <>
+                  {" "}
+                  &nbsp;|&nbsp; Power Run: <b>{powerRun}</b>
+                </>
+              )}
+            </p>
+          )}
+        </div> */}
+
+        <button
+          onClick={handleExportExcel}
+          style={{
+            padding: "6px 14px",
+            borderRadius: 6,
+            border: "1px solid #1d4ed8",
+            background: "#2563eb",
+            color: "#ffffff",
+            fontSize: 12,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            marginLeft:"auto"
+          }}
+        >
+          ⬇ Xuất Excel
+        </button>
+      </div>
+
+      {loading && <p>Đang tải dữ liệu...</p>}
+      {error && (
+        <p style={{ color: "red", marginTop: 4, marginBottom: 4 }}>{error}</p>
+      )}
+
+      {/* HÀNG TRÊN: PIE + BẢNG */}
+      <div
+        style={{
+          marginTop: 4,
+          display: "grid",
+          gridTemplateColumns: "1fr 1.4fr",
+          gap: 16,
+          width: "100%",
+          // flex: 1,
+          minHeight: 0,
+        }}
+      >
+        {/* PIE CHART */}
+        <div
+          style={{
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            background: "#ffffff",
+            padding: 12,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
+        >
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Tooltip />
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius="90%"
+                  label={pieData.length > 0}
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.color || "#6b7280"}
+                    />
+                  ))}
+                </Pie>
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-  
-          {/* BẢNG LEGEND + THỜI GIAN + % */}
-          <div
-            style={{
-              borderRadius: 8,
-              border: "1px solid #d1d5db",
-              background: "#ffffff",
-              padding: 8,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
+        </div>
+
+        {/* BẢNG LEGEND + THỜI GIAN + % */}
+        <div
+          style={{
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            background: "#ffffff",
+            padding: 12,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
+        >
+          <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
             <table
               style={{
                 width: "100%",
                 borderCollapse: "collapse",
-                fontSize: 12,
+                fontSize: 20,
               }}
             >
               <thead>
@@ -120,10 +305,10 @@ import {
                       borderBottom: "1px solid #d1d5db",
                       textAlign: "left",
                       padding: "4px 6px",
-                      width: 60,
+                      width: 70,
                     }}
                   >
-                    Pie Chart
+                    Pie
                   </th>
                   <th
                     style={{
@@ -141,14 +326,14 @@ import {
                       padding: "4px 6px",
                     }}
                   >
-                    Tổng thời gian
+                    Thời gian
                   </th>
                   <th
                     style={{
                       borderBottom: "1px solid #d1d5db",
                       textAlign: "right",
                       padding: "4px 6px",
-                      width: 70,
+                      width: 80,
                     }}
                   >
                     Tỷ lệ (%)
@@ -170,7 +355,7 @@ import {
                           width: 14,
                           height: 14,
                           borderRadius: 3,
-                          backgroundColor: row.color,
+                          backgroundColor: row.color || "#6b7280",
                         }}
                       />
                     </td>
@@ -197,86 +382,120 @@ import {
                         textAlign: "right",
                       }}
                     >
-                      {row.ratio}
+                      {row.ratio_text || `${row.ratio ?? 0}%`}
                     </td>
                   </tr>
                 ))}
+
+                {detailRows.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      style={{
+                        padding: "6px",
+                        textAlign: "center",
+                        color: "#9ca3af",
+                      }}
+                    >
+                      Không có dữ liệu chi tiết.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
-  
-            <div style={{ marginTop: 6, fontSize: 12 }}>
-              <b>Power Run:</b> 7h 55m 48s
-            </div>
           </div>
+
+          {powerRun && (
+            <div style={{ marginTop:10, fontSize: 20 }}>
+              <b>Power Run:</b> {powerRun}
+            </div>
+          )}
         </div>
-  
-        {/* BẢNG PRODUCT NHỎ, LỆCH PHẢI */}
+      </div>
+
+      {/* HÀNG DƯỚI – PRODUCT */}
+      <div
+        style={{
+          marginTop: 12,
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
         <div
           style={{
-            marginTop: 10,
             borderRadius: 8,
             border: "1px solid #d1d5db",
             background: "#ffffff",
-            padding: 8,
-            width: "40%",       // 🔥 nhỏ lại
-            marginLeft: "auto", // 🔥 đẩy sang phải
+            padding: 10,
+            width: "60%",
+            minWidth: 420,
           }}
         >
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: 14,
-            }}
-          >
-            <thead>
-              <tr>
-                <th
-                  colSpan={4}
-                  style={{
-                    borderBottom: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                    textAlign: "left",
-                  }}
-                >
-                  PRODUCT
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ padding: "4px 6px" }}>TOTAL</td>
-                <td style={{ padding: "4px 6px" }}>{productInfo.total}</td>
-                <td style={{ padding: "4px 6px" }}>OK</td>
-                <td
-                  style={{
-                    padding: "4px 6px",
-                    color: "#16a34a",
-                    fontWeight: 700,
-                  }}
-                >
-                  {productInfo.ok}
-                </td>
-              </tr>
-              <tr>
-                <td style={{ padding: "4px 6px" }}>NG</td>
-                <td
-                  style={{
-                    padding: "4px 6px",
-                    color: "#ef4444",
-                    fontWeight: 700,
-                  }}
-                >
-                  {productInfo.ng}
-                </td>
-                <td style={{ padding: "4px 6px" }}>RATIO</td>
-                <td style={{ padding: "4px 6px", fontWeight: 700 }}>
-                  {productInfo.ratio}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          {productInfo ? (
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 20,
+              }}
+            >
+              <thead>
+                <tr>
+                  <th
+                    colSpan={8}
+                    style={{
+                      borderBottom: "1px solid #d1d5db",
+                      padding: "4px 6px",
+                      textAlign: "left",
+                    }}
+                  >
+                    PRODUCT
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: "4px 6px" }}>TOTAL</td>
+                  <td style={{ padding: "4px 6px", fontWeight: 600 }}>
+                    {productInfo.total}
+                  </td>
+                  <td style={{ padding: "4px 6px" }}>OK</td>
+                  <td
+                    style={{
+                      padding: "4px 6px",
+                      color: "#16a34a",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {productInfo.ok}
+                  </td>
+                  <td style={{ padding: "4px 6px" }}>NG</td>
+                  <td
+                    style={{
+                      padding: "4px 6px",
+                      color: "#ef4444",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {productInfo.ng}
+                  </td>
+                  <td style={{ padding: "4px 6px" }}>RATIO</td>
+                  <td
+                    style={{
+                      padding: "4px 6px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {productInfo.ratio_text || `${productInfo.ratio ?? 0}%`}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          ) : (
+            <p style={{ margin: 0 }}>Không có dữ liệu sản lượng.</p>
+          )}
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
