@@ -19,6 +19,19 @@ export default function MachineDayPage({ machine, day }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const showOverlay = loading && day;
+  const color_map = {
+    Operation:          "#00a03e",
+    SmallStop:          "#f97316",
+    Fault:              "#ef4444",
+    Break:              "#eab308",
+    Maintenance:        "#6b21a8",
+    Eat:                "#22c55e",
+    Waiting:            "#0ea5e9",
+    MachineryEdit:      "#1d4ed8",
+    ChangeProductCode:  "#a855f7",
+    Glue_CleaningPaper: "#fb7185",
+    Others:             "#6b7280",
+  };
   useEffect(() => {
     if (!machine || !day) return;
 
@@ -386,21 +399,71 @@ export default function MachineDayPage({ machine, day }) {
                     </td>
                   </tr>
                 ))}
+              {detailRows.length === 0 &&
+  [
+    "Operation",
+    "SmallStop",
+    "Fault",
+    "Break",
+    "Maintenance",
+    "Eat",
+    "Waiting",
+    "MachineryEdit",
+    "ChangeProductCode",
+    "Glue_CleaningPaper",
+    "Others",
+  ].map((label, idx) => {
+    const color = color_map[label] || "#6b7280";
 
-                {detailRows.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      style={{
-                        padding: "6px",
-                        textAlign: "center",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      Không có dữ liệu chi tiết.
-                    </td>
-                  </tr>
-                )}
+    return (
+      <tr key={idx}>
+        <td
+          style={{
+            padding: "3px 6px",
+            borderBottom: "1px solid #e5e7eb",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 14,
+              height: 14,
+              borderRadius: 3,
+              backgroundColor: color,
+            }}
+          />
+        </td>
+
+        <td
+          style={{
+            padding: "3px 6px",
+            borderBottom: "1px solid #e5e7eb",
+          }}
+        >
+          {label}
+        </td>
+
+        <td
+          style={{
+            padding: "3px 6px",
+            borderBottom: "1px solid #e5e7eb",
+          }}
+        >
+          0h 0m
+        </td>
+
+        <td
+          style={{
+            padding: "3px 6px",
+            borderBottom: "1px solid #e5e7eb",
+            textAlign: "right",
+          }}
+        >
+          0.0%
+        </td>
+      </tr>
+    );
+  })}
               </tbody>
             </table>
           </div>
@@ -492,7 +555,67 @@ export default function MachineDayPage({ machine, day }) {
               </tbody>
             </table>
           ) : (
-            <p style={{ margin: 0 }}>Không có dữ liệu sản lượng.</p>
+            <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 20,
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  colSpan={8}
+                  style={{
+                    borderBottom: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                    textAlign: "left",
+                  }}
+                >
+                  PRODUCT
+                </th>
+              </tr>
+            </thead>
+        
+            <tbody>
+              <tr>
+                <td style={{ padding: "4px 6px" }}>TOTAL</td>
+                <td style={{ padding: "4px 6px", fontWeight: 600 }}>0</td>
+        
+                <td style={{ padding: "4px 6px" }}>OK</td>
+                <td
+                  style={{
+                    padding: "4px 6px",
+                    color: "#16a34a",
+                    fontWeight: 700,
+                  }}
+                >
+                  0
+                </td>
+        
+                <td style={{ padding: "4px 6px" }}>NG</td>
+                <td
+                  style={{
+                    padding: "4px 6px",
+                    color: "#ef4444",
+                    fontWeight: 700,
+                  }}
+                >
+                  0
+                </td>
+        
+                <td style={{ padding: "4px 6px" }}>RATIO</td>
+                <td
+                  style={{
+                    padding: "4px 6px",
+                    fontWeight: 700,
+                  }}
+                >
+                  0%
+                </td>
+              </tr>
+            </tbody>
+          </table>
           )}
         </div>
       </div>

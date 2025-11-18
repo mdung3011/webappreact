@@ -3,6 +3,7 @@
   height: 100vh;
   font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
   background-color: #f9fafb;
+  overflow: hidden; /* ⭐ Ngăn toàn trang scroll, chỉ cho main scroll */
 }
 
 /* Sidebar */
@@ -12,6 +13,9 @@
   border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
+  /* height: 953px;  ❌ bỏ fixed height */
+  height: 100vh;      /* ⭐ cao bằng màn hình */
+  flex-shrink: 0;     /* ⭐ không bị co lại khi main scroll */
 }
 
 .logo {
@@ -44,14 +48,14 @@
 .menu-btn.active {
   background-color: #e0f2fe;
   color: #0284c7;
-  background: #374151;
+  /* background: #374151;  // ❌ cái này đè lên background-color, nếu muốn nền xanh đậm thì giữ, còn không thì bỏ */
 }
 
 /* ✅ Nút đăng xuất giữ ở cuối sidebar */
 .logout-btn {
   margin-top: auto;
   padding: 10px 16px;
-  border-top: 1px solid #e5e7eb;
+  border: 1px solid #e5e7eb;
   background: none;
   text-align: left;
   cursor: pointer;
@@ -69,6 +73,8 @@
   display: flex;
   flex-direction: column;
   padding: 16px 24px;
+  overflow-y: auto;  /* ⭐ Chỉ phần main scroll */
+  min-height: 0;     /* ⭐ fix flexbox để scroll hoạt động tốt */
 }
 
 /* ✅ Thẻ riêng hiển thị full_name, canh phải, có background */
@@ -95,6 +101,8 @@
   justify-content: flex-end; /* đẩy box nội dung sát bên phải */
   align-items: flex-start;
   padding-top: 16px;
+  /* ⭐ nếu bên trong content-box dài hơn chiều cao, nó sẽ đẩy main scroll,
+     nên ở đây KHÔNG cần overflow-y thêm nữa */
 }
 
 /* Hộp nội dung (1 div duy nhất) */
